@@ -1,2 +1,2 @@
-# sm2eigamal
-EC-EIGamal with SM2
+# sm2elgamal
+EC-ElGamal with SM2
