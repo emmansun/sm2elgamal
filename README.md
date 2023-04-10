@@ -1,4 +1,8 @@
-# sm2elgamal
+# Partially Homomorphic Encryption, EC-ElGamal with SM2
+
+[![test](https://github.com/emmansun/sm2elgamal/actions/workflows/go.yml/badge.svg)](https://github.com/emmansun/sm2elgamal/actions/workflows/go.yml)
+![GitHub go.mod Go version (branch)](https://img.shields.io/github/go-mod/go-version/emmansun/sm2elgamal)
+
 本实验性实现是EC-ElGamal with SM2的半同态加密（Partially Homomorphic Encryption, PHE）。
 - 密文同态加法，如果结果溢出(uint32)，则抛异常；
 - 密文同态减法，如果结果为负数，则抛异常；
