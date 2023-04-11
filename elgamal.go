@@ -28,6 +28,7 @@ var (
 )
 
 var (
+	nMinusOne              *big.Int
 	giantBaseX, giantBaseY *big.Int
 	babyLookupTable        map[string]babyElement
 	babyLookupTableOnce    sync.Once
@@ -38,6 +39,7 @@ var ErrOverflow = fmt.Errorf("the value is overflow")
 func lookupTable() map[string]babyElement {
 	babyLookupTableOnce.Do(func() {
 		sm2Curve := sm2.P256()
+		nMinusOne = new(big.Int).Sub(sm2.P256().Params().N, big.NewInt(1))
 		giantBaseX, giantBaseY = sm2Curve.ScalarBaseMult(new(big.Int).Sub(sm2.P256().Params().N, big.NewInt(int64(babySteps))).Bytes())
 
 		babyLookupTable = make(map[string]babyElement)
@@ -55,16 +57,14 @@ func lookupTable() map[string]babyElement {
 	return babyLookupTable
 }
 
-func LookupTableSize() int {
-	return len(lookupTable())
-}
-
+// Ciphertext sturcture represents EL-Gamal ecnryption result.
 type Ciphertext struct {
 	curve elliptic.Curve
 	c1    []byte
 	c2    []byte
 }
 
+// Add returns c1 + c2.
 func (ret *Ciphertext) Add(c1, c2 *Ciphertext) *Ciphertext {
 	x11, y11 := sm2ec.UnmarshalCompressed(c1.curve, c1.c1)
 	x12, y12 := sm2ec.UnmarshalCompressed(c1.curve, c1.c2)
@@ -81,6 +81,7 @@ func (ret *Ciphertext) Add(c1, c2 *Ciphertext) *Ciphertext {
 	return ret
 }
 
+// Sub returns c1 - c2.
 func (ret *Ciphertext) Sub(c1, c2 *Ciphertext) *Ciphertext {
 	x11, y11 := sm2ec.UnmarshalCompressed(c1.curve, c1.c1)
 	x12, y12 := sm2ec.UnmarshalCompressed(c1.curve, c1.c2)
@@ -102,8 +103,8 @@ func (ret *Ciphertext) Sub(c1, c2 *Ciphertext) *Ciphertext {
 	return ret
 }
 
-// ScalarMult
-func (ret *Ciphertext) ScalarMult(c *Ciphertext, m uint32) *Ciphertext {
+// ScalarMultUint32 scalar mutiples the ciphertext with m.
+func (ret *Ciphertext) ScalarMultUint32(c *Ciphertext, m uint32) *Ciphertext {
 	if m == 0 {
 		panic("can't scalar multiple zero")
 	}
@@ -120,7 +121,8 @@ func (ret *Ciphertext) ScalarMult(c *Ciphertext, m uint32) *Ciphertext {
 	return ret
 }
 
-func (ret *Ciphertext) ScalarMultSigned(c *Ciphertext, m int32) *Ciphertext {
+// ScalarMultInt32 scalar mutiples the ciphertext with m.
+func (ret *Ciphertext) ScalarMultInt32(c *Ciphertext, m int32) *Ciphertext {
 	if m == 0 {
 		panic("can't scalar multiple zero")
 	}
@@ -137,6 +139,7 @@ func (ret *Ciphertext) ScalarMultSigned(c *Ciphertext, m int32) *Ciphertext {
 	return ret
 }
 
+// Marshal converts the ciphertext to ASN.1 DER form.
 func Marshal(c *Ciphertext) ([]byte, error) {
 	var b cryptobyte.Builder
 	b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
@@ -146,6 +149,7 @@ func Marshal(c *Ciphertext) ([]byte, error) {
 	return b.Bytes()
 }
 
+// Unmarshal parses ciphertext in ASN.1 DER form.
 func Unmarshal(der []byte) (*Ciphertext, error) {
 	var (
 		ret   *Ciphertext = &Ciphertext{}
@@ -185,7 +189,8 @@ func randFieldElement(c elliptic.Curve, rand io.Reader) (k *big.Int, err error) 
 	}
 }
 
-func Encrypt(random io.Reader, pub *ecdsa.PublicKey, m uint32) (*Ciphertext, error) {
+// EncryptUint32 encrypts m with the publickey.
+func EncryptUint32(random io.Reader, pub *ecdsa.PublicKey, m uint32) (*Ciphertext, error) {
 	k, err := randFieldElement(pub.Curve, random)
 	if err != nil {
 		return nil, err
@@ -213,7 +218,8 @@ func getFieldValue(curve elliptic.Curve, m int32) *big.Int {
 	return gVal
 }
 
-func EncryptSigned(random io.Reader, pub *ecdsa.PublicKey, m int32) (*Ciphertext, error) {
+// EncryptInt32 encrypts m with the publickey.
+func EncryptInt32(random io.Reader, pub *ecdsa.PublicKey, m int32) (*Ciphertext, error) {
 	k, err := randFieldElement(pub.Curve, random)
 	if err != nil {
 		return nil, err
@@ -234,7 +240,8 @@ func EncryptSigned(random io.Reader, pub *ecdsa.PublicKey, m int32) (*Ciphertext
 	return &Ciphertext{pub.Curve, elliptic.MarshalCompressed(pub.Curve, x1, y1), elliptic.MarshalCompressed(pub.Curve, x2, y2)}, nil
 }
 
-func Decrypt(priv *sm2.PrivateKey, ciphertext *Ciphertext) (uint32, error) {
+// DecryptUint32 decrypts ciphertext to uint32, if the value overflow, it returns ErrOverflow.
+func DecryptUint32(priv *sm2.PrivateKey, ciphertext *Ciphertext) (uint32, error) {
 	x1, y1 := sm2ec.UnmarshalCompressed(priv.Curve, ciphertext.c1)
 	x2, y2 := sm2ec.UnmarshalCompressed(priv.Curve, ciphertext.c2)
 
@@ -284,7 +291,9 @@ func decryptSigned(priv *sm2.PrivateKey, x, y *big.Int) int32 {
 	return 0
 }
 
-func DecryptSigned(priv *sm2.PrivateKey, ciphertext *Ciphertext) (int32, error) {
+// DecryptInt32 decrypts ciphertext to int32, if the value overflow, it returns ErrOverflow.
+// The negative value will be slower than positive value.
+func DecryptInt32(priv *sm2.PrivateKey, ciphertext *Ciphertext) (int32, error) {
 	x1, y1 := sm2ec.UnmarshalCompressed(priv.Curve, ciphertext.c1)
 	x2, y2 := sm2ec.UnmarshalCompressed(priv.Curve, ciphertext.c2)
 
@@ -299,7 +308,7 @@ func DecryptSigned(priv *sm2.PrivateKey, ciphertext *Ciphertext) (int32, error) 
 		return ret, nil
 	}
 
-	xNeg, yNeg := priv.Curve.ScalarMult(x22, y22, new(big.Int).Sub(priv.Params().N, big.NewInt(1)).Bytes())
+	xNeg, yNeg := priv.Curve.ScalarMult(x22, y22, nMinusOne.Bytes())
 
 	ret = decryptSigned(priv, xNeg, yNeg)
 	if ret != 0 {
