@@ -1,7 +1,9 @@
 # Partially Homomorphic Encryption, EC-ElGamal with SM2
 
 [![test](https://github.com/emmansun/sm2elgamal/actions/workflows/go.yml/badge.svg)](https://github.com/emmansun/sm2elgamal/actions/workflows/go.yml)
+[![Documentation](https://godoc.org/github.com/emmansun/sm2elgamal?status.svg)](https://godoc.org/github.com/emmansun/sm2elgamal)
 ![GitHub go.mod Go version (branch)](https://img.shields.io/github/go-mod/go-version/emmansun/sm2elgamal)
+[![Release](https://img.shields.io/github/release/emmansun/sm2elgamal/all.svg)](https://github.com/emmansun/sm2elgamal/releases)
 
 本实验性实现是EC-ElGamal with SM2的半同态加密（Partially Homomorphic Encryption, PHE）, 支持uint32 或者 int32类型。
 - 密文同态加法，如果结果溢出(uint32/int32)，则解密时抛异常；
