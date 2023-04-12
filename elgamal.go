@@ -81,6 +81,24 @@ func (ret *Ciphertext) Add(c1, c2 *Ciphertext) *Ciphertext {
 	return ret
 }
 
+// Sum returns cumulative sum value
+func (ret *Ciphertext) Sum(values ...*Ciphertext) *Ciphertext {
+	v0 := values[0]
+	v0c1x, v0c1y := sm2ec.UnmarshalCompressed(v0.curve, v0.c1)
+	v0c2x, v0c2y := sm2ec.UnmarshalCompressed(v0.curve, v0.c2)
+	for i := 1; i < len(values); i++ {
+		vi := values[i]
+		vic1x, vic1y := sm2ec.UnmarshalCompressed(vi.curve, vi.c1)
+		vic2x, vic2y := sm2ec.UnmarshalCompressed(vi.curve, vi.c2)
+		v0c1x, v0c1y = v0.curve.Add(vic1x, vic1y, v0c1x, v0c1y)
+		v0c2x, v0c2y = v0.curve.Add(vic2x, vic2y, v0c2x, v0c2y)
+	}
+	ret.curve = v0.curve
+	ret.c1 = elliptic.MarshalCompressed(v0.curve, v0c1x, v0c1y)
+	ret.c2 = elliptic.MarshalCompressed(v0.curve, v0c2x, v0c2y)
+	return ret
+}
+
 // Sub returns c1 - c2.
 func (ret *Ciphertext) Sub(c1, c2 *Ciphertext) *Ciphertext {
 	x11, y11 := sm2ec.UnmarshalCompressed(c1.curve, c1.c1)
@@ -191,12 +209,14 @@ func randFieldElement(c elliptic.Curve, rand io.Reader) (k *big.Int, err error) 
 
 // EncryptUint32 encrypts m with the publickey.
 func EncryptUint32(random io.Reader, pub *ecdsa.PublicKey, m uint32) (*Ciphertext, error) {
-	k, err := randFieldElement(pub.Curve, random)
+	r, err := randFieldElement(pub.Curve, random)
 	if err != nil {
 		return nil, err
 	}
-	x1, y1 := pub.Curve.ScalarBaseMult(k.Bytes())
-	x11, y11 := pub.Curve.ScalarMult(pub.X, pub.Y, k.Bytes())
+	// c1 = rG
+	x1, y1 := pub.Curve.ScalarBaseMult(r.Bytes())
+	// c2 = rP
+	x11, y11 := pub.Curve.ScalarMult(pub.X, pub.Y, r.Bytes())
 
 	var x2, y2 *big.Int
 	if m == 0 {
@@ -205,6 +225,7 @@ func EncryptUint32(random io.Reader, pub *ecdsa.PublicKey, m uint32) (*Ciphertex
 	} else {
 		x2, y2 = pub.Curve.ScalarBaseMult(big.NewInt(int64(m)).Bytes())
 	}
+	// c2 = rP + mG
 	x2, y2 = pub.Curve.Add(x11, y11, x2, y2)
 
 	return &Ciphertext{pub.Curve, elliptic.MarshalCompressed(pub.Curve, x1, y1), elliptic.MarshalCompressed(pub.Curve, x2, y2)}, nil
@@ -220,12 +241,14 @@ func getFieldValue(curve elliptic.Curve, m int32) *big.Int {
 
 // EncryptInt32 encrypts m with the publickey.
 func EncryptInt32(random io.Reader, pub *ecdsa.PublicKey, m int32) (*Ciphertext, error) {
-	k, err := randFieldElement(pub.Curve, random)
+	r, err := randFieldElement(pub.Curve, random)
 	if err != nil {
 		return nil, err
 	}
-	x1, y1 := pub.Curve.ScalarBaseMult(k.Bytes())
-	x11, y11 := pub.Curve.ScalarMult(pub.X, pub.Y, k.Bytes())
+	// c1 = rG
+	x1, y1 := pub.Curve.ScalarBaseMult(r.Bytes())
+	// c2 = rP
+	x11, y11 := pub.Curve.ScalarMult(pub.X, pub.Y, r.Bytes())
 
 	var x2, y2 *big.Int
 	if m == 0 {
@@ -235,34 +258,63 @@ func EncryptInt32(random io.Reader, pub *ecdsa.PublicKey, m int32) (*Ciphertext,
 		mVal := getFieldValue(pub.Curve, m)
 		x2, y2 = pub.Curve.ScalarBaseMult(mVal.Bytes())
 	}
+	// c2 = rP + mG = r*dG + mG = d*rG + mG = d*c1 + mG
+	// mG = c2 - d*c1
 	x2, y2 = pub.Curve.Add(x11, y11, x2, y2)
 
 	return &Ciphertext{pub.Curve, elliptic.MarshalCompressed(pub.Curve, x1, y1), elliptic.MarshalCompressed(pub.Curve, x2, y2)}, nil
 }
 
+// PrivateKey is an interface for elgamal decription requirement abstraction
+type PrivateKey interface {
+	// GetCurve returns this private key's Curve
+	GetCurve() elliptic.Curve
+	// GetD returns this private key's value
+	GetD() *big.Int
+}
+
+// sm2PrivateKey is a wrapper struct for [sm2.PrivateKey] to implement [PrivateKey] interface.
+type sm2PrivateKey struct {
+	sm2.PrivateKey
+}
+
+func (priv *sm2PrivateKey) GetCurve() elliptic.Curve {
+	return priv.Curve
+}
+
+func (priv *sm2PrivateKey) GetD() *big.Int {
+	return priv.D
+}
+
 // DecryptUint32 decrypts ciphertext to uint32, if the value overflow, it returns ErrOverflow.
 func DecryptUint32(priv *sm2.PrivateKey, ciphertext *Ciphertext) (uint32, error) {
-	x1, y1 := sm2ec.UnmarshalCompressed(priv.Curve, ciphertext.c1)
-	x2, y2 := sm2ec.UnmarshalCompressed(priv.Curve, ciphertext.c2)
+	return decryptUint32(&sm2PrivateKey{*priv}, ciphertext)
+}
 
-	x11, y11 := priv.Curve.ScalarMult(x1, y1, new(big.Int).Sub(priv.Params().N, priv.D).Bytes())
-	x22, y22 := priv.Curve.Add(x2, y2, x11, y11)
+// decryptUint32 decrypts ciphertext to uint32, if the value overflow, it returns ErrOverflow.
+func decryptUint32(priv PrivateKey, ciphertext *Ciphertext) (uint32, error) {
+	curve := priv.GetCurve()
+	x1, y1 := sm2ec.UnmarshalCompressed(curve, ciphertext.c1)
+	x2, y2 := sm2ec.UnmarshalCompressed(curve, ciphertext.c2)
+
+	x11, y11 := curve.ScalarMult(x1, y1, new(big.Int).Sub(curve.Params().N, priv.GetD()).Bytes())
+	x22, y22 := curve.Add(x2, y2, x11, y11)
 	if x22.Sign() == 0 && y22.Sign() == 0 {
 		return 0, nil
 	}
 
-	c := elliptic.MarshalCompressed(priv.Curve, x22, y22)
+	c := elliptic.MarshalCompressed(curve, x22, y22)
 	value, prs := lookupTable()[string(c)]
 	if prs {
 		return value.Index, nil
 	}
 
 	for i := 1; i < giantSteps; i++ {
-		x22, y22 = priv.Add(x22, y22, giantBaseX, giantBaseY)
+		x22, y22 = curve.Add(x22, y22, giantBaseX, giantBaseY)
 		if x22.Sign() == 0 && y22.Sign() == 0 {
 			return uint32(i * babySteps), nil
 		}
-		c = elliptic.MarshalCompressed(priv.Curve, x22, y22)
+		c = elliptic.MarshalCompressed(curve, x22, y22)
 		value, prs = lookupTable()[string(c)]
 		if prs {
 			return uint32(i*babySteps + int(value.Index)), nil
@@ -271,49 +323,56 @@ func DecryptUint32(priv *sm2.PrivateKey, ciphertext *Ciphertext) (uint32, error)
 	return 0, ErrOverflow
 }
 
-func decryptSigned(priv *sm2.PrivateKey, x, y *big.Int) int32 {
-	c := elliptic.MarshalCompressed(priv.Curve, x, y)
+// DecryptInt32 decrypts ciphertext to int32, if the value overflow, it returns ErrOverflow.
+// The negative value will be slower than positive value.
+func DecryptInt32(priv *sm2.PrivateKey, ciphertext *Ciphertext) (int32, error) {
+	return decryptInt32(&sm2PrivateKey{*priv}, ciphertext)
+}
+
+// decryptInt32 decrypts ciphertext to int32, if the value overflow, it returns ErrOverflow.
+// The negative value will be slower than positive value.
+func decryptInt32(priv PrivateKey, ciphertext *Ciphertext) (int32, error) {
+	curve := priv.GetCurve()
+	x1, y1 := sm2ec.UnmarshalCompressed(curve, ciphertext.c1)
+	x2, y2 := sm2ec.UnmarshalCompressed(curve, ciphertext.c2)
+
+	x11, y11 := curve.ScalarMult(x1, y1, new(big.Int).Sub(curve.Params().N, priv.GetD()).Bytes())
+	x22, y22 := curve.Add(x2, y2, x11, y11)
+	if x22.Sign() == 0 && y22.Sign() == 0 {
+		return 0, nil
+	}
+
+	ret := decryptSigned(curve, x22, y22)
+	if ret != 0 {
+		return ret, nil
+	}
+
+	xNeg, yNeg := curve.ScalarMult(x22, y22, nMinusOne.Bytes())
+
+	ret = decryptSigned(curve, xNeg, yNeg)
+	if ret != 0 {
+		return -ret, nil
+	}
+
+	return 0, ErrOverflow
+}
+
+func decryptSigned(curve elliptic.Curve, x, y *big.Int) int32 {
+	c := elliptic.MarshalCompressed(curve, x, y)
 	value, prs := lookupTable()[string(c)]
 	if prs {
 		return int32(value.Index)
 	}
 	for i := 1; i < signedGiantSteps; i++ {
-		x, y = priv.Add(x, y, giantBaseX, giantBaseY)
+		x, y = curve.Add(x, y, giantBaseX, giantBaseY)
 		if x.Sign() == 0 && y.Sign() == 0 {
 			return int32(i * babySteps)
 		}
-		c := elliptic.MarshalCompressed(priv.Curve, x, y)
+		c := elliptic.MarshalCompressed(curve, x, y)
 		value, prs := lookupTable()[string(c)]
 		if prs {
 			return int32(i*babySteps + int(value.Index))
 		}
 	}
 	return 0
-}
-
-// DecryptInt32 decrypts ciphertext to int32, if the value overflow, it returns ErrOverflow.
-// The negative value will be slower than positive value.
-func DecryptInt32(priv *sm2.PrivateKey, ciphertext *Ciphertext) (int32, error) {
-	x1, y1 := sm2ec.UnmarshalCompressed(priv.Curve, ciphertext.c1)
-	x2, y2 := sm2ec.UnmarshalCompressed(priv.Curve, ciphertext.c2)
-
-	x11, y11 := priv.Curve.ScalarMult(x1, y1, new(big.Int).Sub(priv.Params().N, priv.D).Bytes())
-	x22, y22 := priv.Curve.Add(x2, y2, x11, y11)
-	if x22.Sign() == 0 && y22.Sign() == 0 {
-		return 0, nil
-	}
-
-	ret := decryptSigned(priv, x22, y22)
-	if ret != 0 {
-		return ret, nil
-	}
-
-	xNeg, yNeg := priv.Curve.ScalarMult(x22, y22, nMinusOne.Bytes())
-
-	ret = decryptSigned(priv, xNeg, yNeg)
-	if ret != 0 {
-		return -ret, nil
-	}
-
-	return 0, ErrOverflow
 }

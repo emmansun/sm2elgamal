@@ -111,6 +111,29 @@ func TestAddUint32(t *testing.T) {
 	}
 }
 
+func TestSumUint32(t *testing.T) {
+	priv, _ := sm2.GenerateKey(rand.Reader)
+	var ciphertexts []*Ciphertext
+	var sum1 uint32
+	for i := 1; i < 10; i++ {
+		v, err := EncryptUint32(rand.Reader, &priv.PublicKey, uint32(i))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ciphertexts = append(ciphertexts, v)
+		sum1 += uint32(i)
+	}
+	ret := &Ciphertext{}
+	ret.Sum(ciphertexts...)
+	sum2, err := DecryptUint32(priv, ret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum2 != sum1 {
+		t.Fatalf("expected %d, got %d", sum1, sum2)
+	}
+}
+
 func testAddInt32(t *testing.T, priv *sm2.PrivateKey, m1, m2 int32) {
 	ciphertext1, err := EncryptInt32(rand.Reader, &priv.PublicKey, m1)
 	if err != nil {
@@ -150,6 +173,29 @@ func TestAddInt32(t *testing.T) {
 	_, err = DecryptInt32(priv, ciphertext)
 	if err == nil || err != ErrOverflow {
 		t.Fatal("should be overflow error")
+	}
+}
+
+func TestSumInt32(t *testing.T) {
+	priv, _ := sm2.GenerateKey(rand.Reader)
+	var ciphertexts []*Ciphertext
+	var sum1 int32
+	for i := -10; i < 0; i++ {
+		v, err := EncryptInt32(rand.Reader, &priv.PublicKey, int32(i))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ciphertexts = append(ciphertexts, v)
+		sum1 += int32(i)
+	}
+	ret := &Ciphertext{}
+	ret.Sum(ciphertexts...)
+	sum2, err := DecryptInt32(priv, ret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum2 != sum1 {
+		t.Fatalf("expected %d, got %d", sum1, sum2)
 	}
 }
 

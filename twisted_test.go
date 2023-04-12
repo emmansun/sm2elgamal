@@ -3,24 +3,22 @@ package sm2elgamal
 import (
 	"crypto/rand"
 	"testing"
-
-	"github.com/emmansun/gmsm/sm2"
 )
 
 var te *TwistedElgamal
-var priv *sm2.PrivateKey
+var priv *TwistedPrivateKey
 
 func init() {
 	te, _ = NewTwistedElgamal(rand.Reader)
 	priv, _ = te.GenerateKey(rand.Reader)
 }
 
-func testTwistedEncryptDecryptUint32(t *testing.T, priv *sm2.PrivateKey, m uint32) {
-	ciphertext, err := FromPrivateKey(priv).EncryptUint32(rand.Reader, &priv.PublicKey, m)
+func testTwistedEncryptDecryptUint32(t *testing.T, priv *TwistedPrivateKey, m uint32) {
+	ciphertext, err := priv.EncryptUint32(rand.Reader, m)
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := DecryptUint32(priv, ciphertext)
+	v, err := priv.DecryptUint32(ciphertext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,12 +40,12 @@ func TestTwistedEncryptDecryptUint32(t *testing.T) {
 	}
 }
 
-func testTwistedEncryptDecryptInt32(t *testing.T, priv *sm2.PrivateKey, m int32) {
-	ciphertext, err := te.EncryptInt32(rand.Reader, &priv.PublicKey, m)
+func testTwistedEncryptDecryptInt32(t *testing.T, priv *TwistedPrivateKey, m int32) {
+	ciphertext, err := priv.EncryptInt32(rand.Reader, m)
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := DecryptInt32(priv, ciphertext)
+	v, err := priv.DecryptInt32(ciphertext)
 	if err != nil {
 		t.Fatal(err)
 	}
