@@ -16,33 +16,29 @@ import (
 	"golang.org/x/crypto/cryptobyte/asn1"
 )
 
-type babyElement struct {
-	Value []byte
-	Index uint32
-}
-
 var (
-	babySteps        = 1 << 21
-	giantSteps       = 1 << 11
-	signedGiantSteps = 1 << 10
+	babySteps          = 1 << 21
+	giantSteps         = 1 << 11
+	signedGiantSteps   = 1 << 10
+	poinCompressionLen = 7
 )
 
 var (
 	nMinusOne              *big.Int
 	giantBaseX, giantBaseY *big.Int
-	babyLookupTable        map[string]babyElement
+	babyLookupTable        map[string]uint32
 	babyLookupTableOnce    sync.Once
 )
 
 var ErrOverflow = fmt.Errorf("the value is overflow")
 
-func lookupTable() map[string]babyElement {
+func lookupTable() map[string]uint32 {
 	babyLookupTableOnce.Do(func() {
 		sm2Curve := sm2.P256()
 		nMinusOne = new(big.Int).Sub(sm2.P256().Params().N, big.NewInt(1))
 		giantBaseX, giantBaseY = sm2Curve.ScalarBaseMult(new(big.Int).Sub(sm2.P256().Params().N, big.NewInt(int64(babySteps))).Bytes())
 
-		babyLookupTable = make(map[string]babyElement)
+		babyLookupTable = make(map[string]uint32)
 		bin, err := os.ReadFile("sm2_lookup_table.bin")
 		if err != nil {
 			panic(err)
@@ -51,7 +47,7 @@ func lookupTable() map[string]babyElement {
 
 		for i := 0; i < size; i++ {
 			p := bin[i*33 : (i+1)*33]
-			babyLookupTable[string(p)] = babyElement{p, uint32(i + 1)}
+			babyLookupTable[string(p[:poinCompressionLen])] = uint32(i + 1)
 		}
 	})
 	return babyLookupTable
@@ -304,9 +300,9 @@ func decryptUint32(priv PrivateKey, ciphertext *Ciphertext) (uint32, error) {
 	}
 
 	c := elliptic.MarshalCompressed(curve, x22, y22)
-	value, prs := lookupTable()[string(c)]
+	value, prs := lookupTable()[string(c[:poinCompressionLen])]
 	if prs {
-		return value.Index, nil
+		return value, nil
 	}
 
 	for i := 1; i < giantSteps; i++ {
@@ -315,9 +311,9 @@ func decryptUint32(priv PrivateKey, ciphertext *Ciphertext) (uint32, error) {
 			return uint32(i * babySteps), nil
 		}
 		c = elliptic.MarshalCompressed(curve, x22, y22)
-		value, prs = lookupTable()[string(c)]
+		value, prs = lookupTable()[string(c[:poinCompressionLen])]
 		if prs {
-			return uint32(i*babySteps + int(value.Index)), nil
+			return uint32(i*babySteps) + value, nil
 		}
 	}
 	return 0, ErrOverflow
@@ -359,9 +355,9 @@ func decryptInt32(priv PrivateKey, ciphertext *Ciphertext) (int32, error) {
 
 func decryptSigned(curve elliptic.Curve, x, y *big.Int) int32 {
 	c := elliptic.MarshalCompressed(curve, x, y)
-	value, prs := lookupTable()[string(c)]
+	value, prs := lookupTable()[string(c[:poinCompressionLen])]
 	if prs {
-		return int32(value.Index)
+		return int32(value)
 	}
 	for i := 1; i < signedGiantSteps; i++ {
 		x, y = curve.Add(x, y, giantBaseX, giantBaseY)
@@ -369,9 +365,9 @@ func decryptSigned(curve elliptic.Curve, x, y *big.Int) int32 {
 			return int32(i * babySteps)
 		}
 		c := elliptic.MarshalCompressed(curve, x, y)
-		value, prs := lookupTable()[string(c)]
+		value, prs := lookupTable()[string(c[:poinCompressionLen])]
 		if prs {
-			return int32(i*babySteps + int(value.Index))
+			return int32(i*babySteps + int(value))
 		}
 	}
 	return 0

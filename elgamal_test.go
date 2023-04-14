@@ -372,3 +372,27 @@ func TestMarshal(t *testing.T) {
 		t.Fatal("not same")
 	}
 }
+
+/*
+func TestCompression(t *testing.T) {
+	bin, err := os.ReadFile("sm2_lookup_table.bin")
+	if err != nil {
+		panic(err)
+	}
+	size := len(bin) / 33
+
+	for j := 16; j > 5; j-- {
+		table := make(map[string]uint32)
+		for i := 0; i < size; i++ {
+			p := bin[i*33 : (i+1)*33]
+			key := string(p[:j])
+			_, prs := table[key]
+			if prs {
+				t.Fatalf("duplicated when j=%d", j)
+			}
+			table[key] = uint32(i + 1)
+		}
+		t.Logf("table size=%x", len(table))
+	}
+}
+*/
