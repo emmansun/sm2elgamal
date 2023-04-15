@@ -19,7 +19,7 @@ func main() {
 	log.Println("start...")
 	for i := 1; i < size; i++ {
 		x, y := sm2Curve.ScalarBaseMult(big.NewInt(int64(i)).Bytes())
-		bin = append(bin, elliptic.MarshalCompressed(sm2Curve, x, y)...)
+		bin = append(bin, elliptic.MarshalCompressed(sm2Curve, x, y)[:7]...)
 	}
 	err := os.WriteFile("sm2_lookup_table.bin", bin, 0644)
 	if err != nil {

@@ -396,3 +396,24 @@ func TestCompression(t *testing.T) {
 	}
 }
 */
+
+func BenchmarkDecriptUint32(b *testing.B) {
+	priv, _ := sm2.GenerateKey(rand.Reader)
+	m := uint32(500)
+	ciphertext, err := EncryptUint32(rand.Reader, &priv.PublicKey, m)
+	if err != nil {
+		b.Fatal(err)
+	}
+	lookupTable()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v, err := DecryptUint32(priv, ciphertext)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if v != m {
+			b.Fatalf("expected %x, got %x", m, v)
+		}
+	}
+}

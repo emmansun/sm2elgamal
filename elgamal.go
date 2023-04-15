@@ -3,6 +3,7 @@ package sm2elgamal
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -43,11 +44,11 @@ func lookupTable() map[string]uint32 {
 		if err != nil {
 			panic(err)
 		}
-		size := len(bin) / 33
+		size := len(bin) / poinCompressionLen
 
 		for i := 0; i < size; i++ {
-			p := bin[i*33 : (i+1)*33]
-			babyLookupTable[string(p[:poinCompressionLen])] = uint32(i + 1)
+			p := bin[i*poinCompressionLen : (i+1)*poinCompressionLen]
+			babyLookupTable[string(p)] = uint32(i + 1)
 		}
 	})
 	return babyLookupTable
@@ -219,7 +220,9 @@ func EncryptUint32(random io.Reader, pub *ecdsa.PublicKey, m uint32) (*Ciphertex
 		x2 = big.NewInt(0)
 		y2 = big.NewInt(0)
 	} else {
-		x2, y2 = pub.Curve.ScalarBaseMult(big.NewInt(int64(m)).Bytes())
+		var a [4]byte
+		binary.BigEndian.PutUint32(a[:], m)
+		x2, y2 = pub.Curve.ScalarBaseMult(a[:])
 	}
 	// c2 = rP + mG
 	x2, y2 = pub.Curve.Add(x11, y11, x2, y2)
