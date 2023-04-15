@@ -404,7 +404,9 @@ func BenchmarkDecriptUint32(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	lookupTable()
+	if len(lookupTable()) != babySteps-1 {
+		b.Fatalf("lookup table is incorrect, %x", len(lookupTable()))
+	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

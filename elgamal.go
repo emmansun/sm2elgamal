@@ -47,7 +47,8 @@ func lookupTable() map[string]uint32 {
 		size := len(bin) / poinCompressionLen
 
 		for i := 0; i < size; i++ {
-			p := bin[i*poinCompressionLen : (i+1)*poinCompressionLen]
+			p := bin[:poinCompressionLen]
+			bin = bin[poinCompressionLen:]
 			babyLookupTable[string(p)] = uint32(i + 1)
 		}
 	})
