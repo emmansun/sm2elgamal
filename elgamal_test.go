@@ -397,7 +397,7 @@ func TestCompression(t *testing.T) {
 }
 */
 
-func BenchmarkDecriptUint32(b *testing.B) {
+func BenchmarkDecryptUint32(b *testing.B) {
 	priv, _ := sm2.GenerateKey(rand.Reader)
 	m := uint32(500)
 	ciphertext, err := EncryptUint32(rand.Reader, &priv.PublicKey, m)
