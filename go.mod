@@ -3,7 +3,7 @@ module github.com/emmansun/sm2elgamal
 go 1.18
 
 require (
-	github.com/emmansun/gmsm v0.29.6
+	github.com/emmansun/gmsm v0.29.7
 	golang.org/x/crypto v0.32.0
 )
 
