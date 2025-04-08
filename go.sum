@@ -1,5 +1,5 @@
-github.com/emmansun/gmsm v0.29.8 h1:py9RwKHe4sIxjgD9mtWSIF5bmspP7IXvQ70Rx8x22Ow=
-github.com/emmansun/gmsm v0.29.8/go.mod h1:7UTFG3GmF8yxyZVB4HgpdeU0JoergL/i2OMGm5w02RA=
+github.com/emmansun/gmsm v0.30.0 h1:TtpenK1/xQDUhd0AM3YuWzxRFB/UrlM/+r9rByF6IEQ=
+github.com/emmansun/gmsm v0.30.0/go.mod h1:qT2qbsoxfveuj88cg/J4/iPkaRZFEua8HYatSaxxhuQ=
 golang.org/x/crypto v0.37.0 h1:kJNSjF/Xp7kU0iB2Z+9viTPMW4EqqsrywMXLJOOsXSE=
 golang.org/x/crypto v0.37.0/go.mod h1:vg+k43peMZ0pUMhYmVAWysMK35e6ioLh3wB8ZCAfbVc=
 golang.org/x/sys v0.32.0 h1:s77OFDvIQeibCmezSnk/q6iAfkdiQaJi4VzroCFrN20=
