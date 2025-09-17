@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/emmansun/gmsm/sm2"
-	"github.com/emmansun/gmsm/sm2/sm2ec"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 )
@@ -64,11 +63,11 @@ type Ciphertext struct {
 
 // Add returns c1 + c2.
 func (ret *Ciphertext) Add(c1, c2 *Ciphertext) *Ciphertext {
-	x11, y11 := sm2ec.UnmarshalCompressed(c1.curve, c1.c1)
-	x12, y12 := sm2ec.UnmarshalCompressed(c1.curve, c1.c2)
+	x11, y11 := elliptic.UnmarshalCompressed(c1.curve, c1.c1)
+	x12, y12 := elliptic.UnmarshalCompressed(c1.curve, c1.c2)
 
-	x21, y21 := sm2ec.UnmarshalCompressed(c2.curve, c2.c1)
-	x22, y22 := sm2ec.UnmarshalCompressed(c2.curve, c2.c2)
+	x21, y21 := elliptic.UnmarshalCompressed(c2.curve, c2.c1)
+	x22, y22 := elliptic.UnmarshalCompressed(c2.curve, c2.c2)
 
 	x31, y31 := c1.curve.Add(x11, y11, x21, y21)
 	x32, y32 := c1.curve.Add(x12, y12, x22, y22)
@@ -82,12 +81,12 @@ func (ret *Ciphertext) Add(c1, c2 *Ciphertext) *Ciphertext {
 // Sum returns cumulative sum value
 func (ret *Ciphertext) Sum(values ...*Ciphertext) *Ciphertext {
 	v0 := values[0]
-	v0c1x, v0c1y := sm2ec.UnmarshalCompressed(v0.curve, v0.c1)
-	v0c2x, v0c2y := sm2ec.UnmarshalCompressed(v0.curve, v0.c2)
+	v0c1x, v0c1y := elliptic.UnmarshalCompressed(v0.curve, v0.c1)
+	v0c2x, v0c2y := elliptic.UnmarshalCompressed(v0.curve, v0.c2)
 	for i := 1; i < len(values); i++ {
 		vi := values[i]
-		vic1x, vic1y := sm2ec.UnmarshalCompressed(vi.curve, vi.c1)
-		vic2x, vic2y := sm2ec.UnmarshalCompressed(vi.curve, vi.c2)
+		vic1x, vic1y := elliptic.UnmarshalCompressed(vi.curve, vi.c1)
+		vic2x, vic2y := elliptic.UnmarshalCompressed(vi.curve, vi.c2)
 		v0c1x, v0c1y = v0.curve.Add(vic1x, vic1y, v0c1x, v0c1y)
 		v0c2x, v0c2y = v0.curve.Add(vic2x, vic2y, v0c2x, v0c2y)
 	}
@@ -99,11 +98,11 @@ func (ret *Ciphertext) Sum(values ...*Ciphertext) *Ciphertext {
 
 // Sub returns c1 - c2.
 func (ret *Ciphertext) Sub(c1, c2 *Ciphertext) *Ciphertext {
-	x11, y11 := sm2ec.UnmarshalCompressed(c1.curve, c1.c1)
-	x12, y12 := sm2ec.UnmarshalCompressed(c1.curve, c1.c2)
+	x11, y11 := elliptic.UnmarshalCompressed(c1.curve, c1.c1)
+	x12, y12 := elliptic.UnmarshalCompressed(c1.curve, c1.c2)
 
-	x21, y21 := sm2ec.UnmarshalCompressed(c2.curve, c2.c1)
-	x22, y22 := sm2ec.UnmarshalCompressed(c2.curve, c2.c2)
+	x21, y21 := elliptic.UnmarshalCompressed(c2.curve, c2.c1)
+	x22, y22 := elliptic.UnmarshalCompressed(c2.curve, c2.c2)
 
 	nMinus1 := new(big.Int).Sub(c1.curve.Params().N, big.NewInt(1)).Bytes()
 
@@ -124,8 +123,8 @@ func (ret *Ciphertext) ScalarMultUint32(c *Ciphertext, m uint32) *Ciphertext {
 	if m == 0 {
 		panic("can't scalar multiple zero")
 	}
-	x1, y1 := sm2ec.UnmarshalCompressed(c.curve, c.c1)
-	x2, y2 := sm2ec.UnmarshalCompressed(c.curve, c.c2)
+	x1, y1 := elliptic.UnmarshalCompressed(c.curve, c.c1)
+	x2, y2 := elliptic.UnmarshalCompressed(c.curve, c.c2)
 
 	x1, y1 = c.curve.ScalarMult(x1, y1, big.NewInt(int64(m)).Bytes())
 	x2, y2 = c.curve.ScalarMult(x2, y2, big.NewInt(int64(m)).Bytes())
@@ -142,8 +141,8 @@ func (ret *Ciphertext) ScalarMultInt32(c *Ciphertext, m int32) *Ciphertext {
 	if m == 0 {
 		panic("can't scalar multiple zero")
 	}
-	x1, y1 := sm2ec.UnmarshalCompressed(c.curve, c.c1)
-	x2, y2 := sm2ec.UnmarshalCompressed(c.curve, c.c2)
+	x1, y1 := elliptic.UnmarshalCompressed(c.curve, c.c1)
+	x2, y2 := elliptic.UnmarshalCompressed(c.curve, c.c2)
 	mValue := getFieldValue(c.curve, m)
 	x1, y1 = c.curve.ScalarMult(x1, y1, mValue.Bytes())
 	x2, y2 = c.curve.ScalarMult(x2, y2, mValue.Bytes())
@@ -278,6 +277,15 @@ type sm2PrivateKey struct {
 	sm2.PrivateKey
 }
 
+func newPrivateKey(k *sm2.PrivateKey) *sm2PrivateKey {
+	pk := &sm2PrivateKey{}
+	pk.D = k.D
+	pk.Curve = k.Curve
+	pk.PublicKey.X = k.PublicKey.X
+	pk.PublicKey.Y = k.PublicKey.Y
+	return pk
+}
+
 func (priv *sm2PrivateKey) GetCurve() elliptic.Curve {
 	return priv.Curve
 }
@@ -288,14 +296,14 @@ func (priv *sm2PrivateKey) GetD() *big.Int {
 
 // DecryptUint32 decrypts ciphertext to uint32, if the value overflow, it returns ErrOverflow.
 func DecryptUint32(priv *sm2.PrivateKey, ciphertext *Ciphertext) (uint32, error) {
-	return decryptUint32(&sm2PrivateKey{*priv}, ciphertext)
+	return decryptUint32(newPrivateKey(priv), ciphertext)
 }
 
 // decryptUint32 decrypts ciphertext to uint32, if the value overflow, it returns ErrOverflow.
 func decryptUint32(priv PrivateKey, ciphertext *Ciphertext) (uint32, error) {
 	curve := priv.GetCurve()
-	x1, y1 := sm2ec.UnmarshalCompressed(curve, ciphertext.c1)
-	x2, y2 := sm2ec.UnmarshalCompressed(curve, ciphertext.c2)
+	x1, y1 := elliptic.UnmarshalCompressed(curve, ciphertext.c1)
+	x2, y2 := elliptic.UnmarshalCompressed(curve, ciphertext.c2)
 
 	x11, y11 := curve.ScalarMult(x1, y1, new(big.Int).Sub(curve.Params().N, priv.GetD()).Bytes())
 	x22, y22 := curve.Add(x2, y2, x11, y11)
@@ -326,15 +334,15 @@ func decryptUint32(priv PrivateKey, ciphertext *Ciphertext) (uint32, error) {
 // DecryptInt32 decrypts ciphertext to int32, if the value overflow, it returns ErrOverflow.
 // The negative value will be slower than positive value.
 func DecryptInt32(priv *sm2.PrivateKey, ciphertext *Ciphertext) (int32, error) {
-	return decryptInt32(&sm2PrivateKey{*priv}, ciphertext)
+	return decryptInt32(newPrivateKey(priv), ciphertext)
 }
 
 // decryptInt32 decrypts ciphertext to int32, if the value overflow, it returns ErrOverflow.
 // The negative value will be slower than positive value.
 func decryptInt32(priv PrivateKey, ciphertext *Ciphertext) (int32, error) {
 	curve := priv.GetCurve()
-	x1, y1 := sm2ec.UnmarshalCompressed(curve, ciphertext.c1)
-	x2, y2 := sm2ec.UnmarshalCompressed(curve, ciphertext.c2)
+	x1, y1 := elliptic.UnmarshalCompressed(curve, ciphertext.c1)
+	x2, y2 := elliptic.UnmarshalCompressed(curve, ciphertext.c2)
 
 	x11, y11 := curve.ScalarMult(x1, y1, new(big.Int).Sub(curve.Params().N, priv.GetD()).Bytes())
 	x22, y22 := curve.Add(x2, y2, x11, y11)
